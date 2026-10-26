@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh pr create *)",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/skills/preflight/scripts/pr_gate.py\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

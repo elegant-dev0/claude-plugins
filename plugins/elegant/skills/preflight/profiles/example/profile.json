@@ -1,0 +1,13 @@
+{
+ "name": "example",
+ "description": "A made-up project, acme, with a web app and an API in two repos side by side. Copy this folder to start a profile of your own, in ~/.claude/preflight/profiles/<name>/.",
+ "gate": true,
+ "repos": {
+  "acme-web": {"github": "acme/web", "folder": "web", "generated": ["^src/generated/"]},
+  "acme-api": {"github": "acme/api", "folder": "api-server", "generated": ["^openapi/client/"]}
+ },
+ "generatedGlobs": ["**/src/generated/**", "openapi/client/**"],
+ "signals": {
+  "security": "(auth|session|middleware|src/handlers/|/api/|webhook|secret|token|cors|redirect|permission|policy|migrations?/|\\.env)"
+ }
+}

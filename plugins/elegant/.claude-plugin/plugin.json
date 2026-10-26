@@ -1,0 +1,9 @@
+{
+  "name": "elegant",
+  "version": "1.0.2",
+  "description": "Preflight: a pre-push and pre-merge code review that checks every finding against the code before it reports it, plus a PR gate and a ledger that scores the review on real PRs.",
+  "author": { "name": "elegant.dev" },
+  "repository": "https://github.com/elegant-dev0/claude-plugins",
+  "license": "MIT",
+  "keywords": ["code-review", "preflight", "pull-request"]
+}
