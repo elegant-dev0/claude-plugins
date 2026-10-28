@@ -1,15 +1,15 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "elegant-dev0",
-  "owner": { "name": "elegant.dev" },
-  "metadata": { "description": "Elegant Labs' Claude Code plugins." },
+  "name": "monogram-labs",
+  "owner": { "name": "Monogram Labs" },
+  "metadata": { "description": "Monogram Labs' Claude Code plugins." },
   "plugins": [
     {
       "name": "elegant",
       "source": "./plugins/elegant",
       "description": "Preflight: a pre-push and pre-merge code review that checks every finding against the code before it reports it, plus a PR gate and a ledger that scores the review on real PRs.",
-      "version": "1.0.2",
-      "author": { "name": "elegant.dev" },
+      "version": "1.0.3",
+      "author": { "name": "Monogram Labs" },
       "category": "development",
       "keywords": ["code-review", "preflight", "pull-request"]
     }
