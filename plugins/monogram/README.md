@@ -1,8 +1,8 @@
-# elegant
+# monogram
 
 **Preflight** reviews your branch before you open a pull request, and again after each push.
 
-- **Run it:** `/elegant:preflight`, or say "run Preflight", inside any git repo. It reviews your branch's diff against where it split from main, plus uncommitted work. It reads the surrounding code, the tests, the repo's written rules and, for a project with a profile, the sibling repos. Every finding is checked against the code by its own agent before you see it.
+- **Run it:** `/monogram:preflight`, or say "run Preflight", inside any git repo. It reviews your branch's diff against where it split from main, plus uncommitted work. It reads the surrounding code, the tests, the repo's written rules and, for a project with a profile, the sibling repos. Every finding is checked against the code by its own agent before you see it.
 - **Cost:** a full review takes about 15 to 20 minutes and uses about 2 to 3 million tokens, mostly in the agents that check each finding. On a plan with a usage limit that is a noticeable share, so run it before you push, not after every edit. A review after a push covers only the new commits and costs less.
 - **On GitHub:** once the PR is open, a run posts its findings as one review, and every message starts with `[✈️ Preflight]`. Posts appear under your own GitHub account, because they go through your `gh` login. After a push, it reviews only the new commits and resolves its own threads that a commit fixed.
 - **Declining a finding:** reply on its thread with your reason. Preflight re-checks once and leaves the thread open.

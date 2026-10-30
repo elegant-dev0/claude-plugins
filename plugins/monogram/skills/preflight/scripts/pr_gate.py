@@ -2,7 +2,7 @@
 """PreToolUse hook: hold `gh pr create` in the repos of a gated profile (profile.json "gate": true)
 until Preflight has reviewed the commit the PR would propose. Other repos are never held.
 
-Wired by the elegant plugin's hooks/hooks.json as a Bash hook filtered by `"if": "Bash(gh pr create *)"`.
+Wired by the monogram plugin's hooks/hooks.json as a Bash hook filtered by `"if": "Bash(gh pr create *)"`.
 It reads the hook input on stdin and the review's state file,
 <git common dir>/preflight/<branch>.json (or the older subcore-review/), which Preflight saves on every run. The command
 runs (exit 0) when that file's `lastReviewed` is the commit the PR would propose. Otherwise it is
@@ -176,7 +176,7 @@ def check(cmd, masked, m, cwd):
     else:
         seen = 'it has not reviewed this branch' + problem
     block(f'Preflight has not reviewed {named.repo} {branch or "(detached HEAD)"} at {commit[:7]} ({seen}). '
-          'Run /elegant:preflight on this branch, then run this command again. ' + SKIP_HINT)
+          'Run /monogram:preflight on this branch, then run this command again. ' + SKIP_HINT)
 
 
 def main():
