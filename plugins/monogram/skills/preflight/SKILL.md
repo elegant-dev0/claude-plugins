@@ -169,7 +169,7 @@ The ledger (`scripts/ledger.py`, kept at `~/.claude/preflight/ledger.json`) is h
 - **Every run:** `ledger.py sync` after saving the state (Step 5).
 - **When the user asks how the reviews are doing, or every 20 settled PRs:** run `ledger.py sync`, `ledger.py settle` (reads PR threads through `gh`, read-only), then `ledger.py report`. The report gives:
   - the fix rate by skill version, finder and severity;
-  - the misses: other reviewers' findings the author fixed, nowhere near one of ours;
+  - the misses: other reviewers' findings the author fixed, nowhere near one of ours, marked when a check refuted a candidate at that spot;
   - our declined findings.
 - **Act on it, then record the change.** Never edit this skill where it is installed (`$SKILL_DIR`, under `~/.claude/plugins/`): the next plugin update replaces it, and the change is lost. A change goes where it lasts:
   - A miss that recurs and is particular to this project becomes a check in the profile's `checks.md`, in `~/.claude/preflight/profiles/<name>/`. With no profile, it is a rule for the repo's AGENTS.md or CLAUDE.md, or a CI check.

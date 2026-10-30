@@ -43,7 +43,8 @@ def main():
              'statusNote': 'house style'},
             {'id': 'F5', 'fingerprint': 'fp-old-post', 'claim': 'posted before the marker', 'severity': 'Minor', 'status': 'open',
              'sites': ['lib/e.ts:7'], 'threadId': 'T-lib/e.ts-7'},
-        ]}})
+        ],
+        'refuted': [{'claim': 'the error is swallowed', 'sites': ['lib/c.ts:195'], 'finders': ['General'], 'reason': 'logged by the caller'}]}})
     fake_repo(T, 'api-server', {'claude_kit-branch.json': {'lastReviewed': 'def', 'reviewedAt': '2026-10-24T11:00:00+00:00',
                                                                'scope': 'quick', 'findings': []}})
 
@@ -87,6 +88,8 @@ def main():
         ("a CodeRabbit title is its bold line", any(o['title'] == 'Guard the empty list before reading it.' for o in others)),
         ('a fixed bot thread near our site is not a miss', any(o['path'] == 'lib/a.ts' and o['nearOurs'] for o in others)),
         ('a fixed bot thread away from ours is a miss', any(o['path'] == 'lib/c.ts' and not o['nearOurs'] and o['outcome'] == 'fixed' for o in others)),
+        ('a miss beside a refuted candidate is marked', any(o['path'] == 'lib/c.ts' and o['nearRefuted'] for o in others)
+         and not any(o['path'] == 'lib/d.ts' and o['nearRefuted'] for o in others)),
     ]
 
     L.save(led)
@@ -100,6 +103,13 @@ def main():
         ('report scores finders', r['byFinder'].get('Standards', {}).get('declined') == 1 and r['byFinder'].get('Claims', {}).get('fixed') == 1),
         ('report groups by skill version', r['byVersion'].get('8', {}).get('misses') == 1),
         ('report counts settled PRs since the last note', r['settledSinceLastNote'] == 1),
+        ('report marks the miss a check refuted', r['missesRefuted'] == 1 and 'a check refuted' in r['misses'][0]),
+        ('old version labels map to the skill VERSION', [L.version_of(v) for v in ('1.0.3', 'monogram 1.1.1', 'monogram-1.1.1', '11', None)]
+         == ['9', '11', '11', '11', None]),
+        ('finder labels map to the finders they name', [L.finder_names(n) for n in ('Claims+Standards', 'Performance and quality',
+         'Security and performance', 'Perf', 'General A', 'General-MCP', 'Contracts (app review)', 'scanner', None)]
+         == [['Claims', 'Standards'], ['Performance'], ['Security', 'Performance'], ['Performance'], ['General'], ['General'],
+             ['Contracts'], ['scanner'], [None]]),
     ]
     out = subprocess.run([sys.executable, LEDGER_PY, 'report'], capture_output=True, text=True)
     checks.append(('report prints', out.returncode == 0 and 'Misses' in out.stdout and '1 PRs settled' in out.stdout))

@@ -165,6 +165,7 @@ def main():
         'commits': (git('log', '--format=%h %s', f'{base}..{head}', check=False) or '').splitlines(),
         'stateFile': state_file, 'stateDir': state_dir, 'reportFile': os.path.join(state_dir, f'{key}-{head[:8]}.md'),
         'state': state, 'increment': increment,
+        'skillVersion': open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'VERSION')).read().strip(),
     }, indent=1))
 
 

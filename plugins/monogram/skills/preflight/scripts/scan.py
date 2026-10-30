@@ -106,7 +106,7 @@ def main():
             if not re.search(rf'alter\s+table\s+[\w."]*{re.escape(t)}"?\s+enable\s+row\s+level\s+security', low):
                 hit('migrations', 'table-without-rls', p, ln, f'table {t} is created without ENABLE ROW LEVEL SECURITY in this migration', 'Major')
             if not re.search(rf'revoke\s+[\w\s,]+\s+on\s+(table\s+)?[\w."]*{re.escape(t)}"?\s+from\s+[\w\s,]*anon', low):
-                hit('migrations', 'table-not-revoked-from-anon', p, ln, f'new table {t}: Supabase grants ALL to anon by default; only an explicit REVOKE narrows it', 'Minor')
+                hit('migrations', 'table-not-revoked-from-anon', p, ln, f'new table {t} has no REVOKE from anon. Where the project grants ALL to anon by default, only an explicit REVOKE narrows it; check what the earlier migrations do', 'Minor')
         for m in re.finditer(r'create\s+(?:or\s+replace\s+)?function\s+([\w."]+)\s*\((.*?)\$\$', low, re.S):
             body_start = m.start(); name = m.group(1).replace('"', '').split('.')[-1]
             header = low[body_start:body_start + 1500]

@@ -26,6 +26,27 @@ OLD_LEDGER = os.path.expanduser('~/.claude/subcore-review/ledger.json')
 STATUS = {'addressed': 'fixed', 'fixed': 'fixed', 'dismissed': 'declined', 'declined': 'declined',
           'open': 'open', 'obsolete': 'obsolete'}
 NEAR = 10  # lines: another reviewer's thread this close to one of our sites counts as the same spot
+FINDERS = ('General', 'Contracts', 'Security', 'Performance', 'Design', 'Standards', 'Claims')
+# Runs before scope.py printed skillVersion wrote the plugin's version instead. Plugin release -> skill VERSION.
+PLUGIN_VERSIONS = {'1.0.0': '9', '1.0.1': '9', '1.0.2': '9', '1.0.3': '9', '1.0.4': '10', '1.1.0': '10', '1.1.1': '11'}
+
+
+def version_of(v):
+    v = re.sub(r'^(?:monogram|elegant)[\s-]*', '', str(v or '').strip())
+    return PLUGIN_VERSIONS.get(v, v) or None
+
+
+def finder_names(name):
+    """The finders a label names. Runs wrote "Claims+Standards", "Perf", "General A", "Contracts (app review)"."""
+    if not name:
+        return [None]
+    out = []
+    for part in re.split(r'\s*(?:\+|,|\band\b)\s*', re.sub(r'\s*\(.*?\)', '', name)):
+        word = re.split(r'[\s-]', part.strip())[0].lower()
+        hit = next((f for f in FINDERS if len(word) >= 4 and f.lower().startswith(word)), None)
+        if hit and hit not in out:
+            out.append(hit)
+    return out or [name]
 
 
 def now():
@@ -106,7 +127,8 @@ def sync(led):
                 'pr': data.get('pr') or run.get('pr'), 'lastReviewed': data.get('lastReviewed'),
                 'reviewedAt': data.get('reviewedAt'), 'startedAt': data.get('startedAt'),
                 'mode': data.get('mode') or (scope if scope not in ('committed', 'working-tree') else None),
-                'skillVersion': data.get('skillVersion'), 'finders': data.get('finders'),
+                'skillVersion': version_of(data.get('skillVersion')), 'finders': data.get('finders'),
+                'refuted': [{k: c.get(k) for k in ('claim', 'sites', 'finders', 'reason')} for c in data.get('refuted') or []] or None,
             }.items() if v is not None})
             for i, f in enumerate(data.get('findings') or []):
                 fid = f.get('fingerprint') or f"{f.get('id') or i}:{(f.get('claim') or '')[:40]}"
@@ -162,6 +184,8 @@ def settle(led, include_open=False, pr_fn=gh_pr, threads_fn=None):
         mine = [t for t in threads if t.get('ours') or t['id'] in ids]  # older posts carry no marker, only a threadId
         ours = {t.get('fingerprint') or t['id']: t for t in mine}
         spots = [s for f in run['findings'].values() for s in sites_of(f)] + [(t['path'], t['line'] or 0) for t in ours.values()]
+        refuted = [s for c in run.get('refuted') or [] for s in sites_of(c)]
+        near = lambda t, sites: any(p == t['path'] and abs((t['line'] or 0) - l) <= NEAR for p, l in sites)
         for f in run['findings'].values():
             t = ours.get(f.get('fingerprint')) or next((x for x in mine if x['id'] == f.get('threadId')), None)
             if t:
@@ -174,7 +198,7 @@ def settle(led, include_open=False, pr_fn=gh_pr, threads_fn=None):
             first = (t.get('comments') or [{}])[0]
             others.append({'by': first.get('author'), 'path': t['path'], 'line': t['line'], 'outcome': thread_outcome(t),
                            'title': t.get('title') or title_of(first.get('body')),
-                           'nearOurs': any(p == t['path'] and abs((t['line'] or 0) - l) <= NEAR for p, l in spots)})
+                           'nearOurs': near(t, spots), 'nearRefuted': near(t, refuted)})
         run['settled'] = {'at': now(), 'prState': pr['state'], 'url': pr.get('url'), 'others': others}
         done += 1
     return done
@@ -183,26 +207,28 @@ def settle(led, include_open=False, pr_fn=gh_pr, threads_fn=None):
 def report(led, since=None):
     runs = [r for r in led['runs'].values() if not since or (r.get('reviewedAt') or '') >= since]
     out = {'reviews': len(runs), 'settled': sum(r.get('settled', {}).get('prState') in ('MERGED', 'CLOSED') for r in runs),
-           'outcomes': {}, 'byVersion': {}, 'byFinder': {}, 'bySeverity': {}, 'misses': [], 'declined': []}
+           'outcomes': {}, 'byVersion': {}, 'byFinder': {}, 'bySeverity': {}, 'misses': [], 'missesRefuted': 0, 'declined': []}
     def bump(table, name, outcome):
         row = table.setdefault(name or 'unrecorded', {})
         row[outcome] = row.get(outcome, 0) + 1
     for r in runs:
-        ver = r.get('skillVersion') or 'unrecorded'
+        ver = version_of(r.get('skillVersion')) or 'unrecorded'
         bump(out['byVersion'], ver, 'reviews')
         for f in r['findings'].values():
             o = f.get('outcome') or f['status']
             out['outcomes'][o] = out['outcomes'].get(o, 0) + 1
             bump(out['byVersion'], ver, o)
             bump(out['bySeverity'], f.get('severity'), o)
-            for name in f.get('finders') or [None]:
+            for name in dict.fromkeys(n for x in f.get('finders') or [None] for n in finder_names(x)):
                 bump(out['byFinder'], name, o)
             if o == 'declined':
                 out['declined'].append(f"{r['repo']}#{r.get('pr')}: {f.get('claim')} ({f.get('statusNote') or 'declined on the thread'})")
         for t in r.get('settled', {}).get('others', []):
             if t['outcome'] == 'fixed' and not t['nearOurs']:
                 bump(out['byVersion'], ver, 'misses')
-                out['misses'].append(f"{r['repo']}#{r.get('pr')} {t['by']} {t['path']}:{t['line']}: {t['title']}")
+                out['missesRefuted'] += bool(t.get('nearRefuted'))
+                mark = ' [a check refuted a candidate here]' if t.get('nearRefuted') else ''
+                out['misses'].append(f"{r['repo']}#{r.get('pr')} {t['by']} {t['path']}:{t['line']}{mark}: {t['title']}")
     last = max((n['at'] for n in led['notes']), default='')
     out['settledSinceLastNote'] = sum(r.get('settled', {}).get('at', '') > last and r['settled'].get('prState') in ('MERGED', 'CLOSED') for r in runs)
     out['notes'] = led['notes'][-5:]
@@ -223,7 +249,8 @@ def print_report(r):
         for name, row in sorted(r[key].items()):
             extra = ''.join(f", {row[k]} {k}" for k in ('reviews', 'misses') if row.get(k))
             print(f'  {name}: {rate(row)}{extra}')
-    print(f"\nMisses: other reviewers' findings the author fixed, nowhere near ours ({len(r['misses'])}):")
+    print(f"\nMisses: other reviewers' findings the author fixed, nowhere near ours ({len(r['misses'])}, "
+          f"{r['missesRefuted']} where a check refuted a candidate):")
     print('\n'.join(f'  {m}' for m in r['misses'][-15:]) or '  none yet')
     print(f"\nOur declined findings, candidates for a Never-flag line ({len(r['declined'])}):")
     print('\n'.join(f'  {d}' for d in r['declined'][-10:]) or '  none yet')

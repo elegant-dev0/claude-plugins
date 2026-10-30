@@ -7,6 +7,8 @@ Every check ends the same way: if it finds something, name the trigger and the c
 ## L1: Runtime behaviour
 
 1. **Twins.** For each changed function, find the paths that must behave the same and compare them. Examples: list vs detail, a count vs the feed it counts, client check vs server check, one channel vs another (chat, SMS, email). Across repos: a parser ported between two services, an MCP tool vs its REST route, and a scaffold template vs the examples built from it.
+   - **A new path beside existing ones** (a channel, a view, an editor, a route, a tool): list what each existing one does, such as its logging, guards, permission checks and id handling, and check that the new one does each. On real PRs, a new eval channel skipped its siblings' session logger, their escalation tool and their session-id format.
+   - **A new rule** (a lock, a guard, a limit, a permission): find every path that writes or describes the same data, and check that the rule holds on each. That includes every view of one record (a form and its JSON view), an input left unchanged, and tool descriptions that say who may call. On real PRs, an id lock added to one editor view was missing from two others.
 2. **Five outcomes of every await.** For each new `await`, check what happens when it is:
    - **superseded:** drop the stale response by scope;
    - **failed:** clear busy flags on rejection, and cache nothing;
@@ -30,6 +32,7 @@ Every check ends the same way: if it finds something, name the trigger and the c
 9. **UI states.**
    - States: empty account, loading, failed lookup, null, zero items, narrow width. Each shows a true sentence and a way forward.
    - Interaction: rows work by keyboard, nothing is tooltip-only, focus moves into what opens, reduced motion is respected.
+   - Pending work: while a save or delete is in flight, every way out (Cancel, Escape, a click outside, back, closing the sheet) is disabled or still lands the result safely, and a second submit can't start. On real PRs, this was missed in two repos.
 
 ## L2: Contracts and integration
 
@@ -84,6 +87,8 @@ For each new contract, flag what is left undefined:
 - what a reader does with a missing or unknown version;
 - the canonical bytes before hashing or truncating;
 - limits and quotas;
+- state kept in one process's memory (sessions, rate limits, caches) when the service runs more than one instance or restarts;
+- the success response of each route it adds, not only its errors;
 - who may change an endpoint or identity;
 - PII retention;
 - recovery of a multi-step call that costs money (buying a phone number, a billed provider call);
@@ -116,7 +121,7 @@ Without a path it is at most a Minor note. Authenticated paths are **not** exemp
    - UPDATE policies can't re-parent a row.
    - `SECURITY DEFINER`: `search_path` pinned, `EXECUTE` revoked from PUBLIC, anon and authenticated, row count asserted.
    - Views are `security_invoker` where intended.
-   - New tables are revoked from anon: a narrow GRANT narrows nothing.
+   - Grants on new tables follow the project's default privileges, which differ between projects. Read the earlier migrations, or the default privileges in a schema dump, to see which applies. Where new tables start with ALL granted to anon and authenticated, revoke what isn't needed: a narrow GRANT narrows nothing. Where they start with none, grant what the Data API needs, or every client query on the table fails.
 3. **Injection and encoding.** Check SQL or PostgREST filter strings built from input (`.or()`, `rpc` with dynamic SQL), shell commands, generated code, and HTML (`dangerouslySetInnerHTML`, rendered Markdown). Also:
    - CSV formulas, header CRLF, open redirects, path traversal;
    - prototype pollution through user-chosen map keys: use `Object.create(null)` or `Object.hasOwn`.

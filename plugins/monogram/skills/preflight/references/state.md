@@ -14,7 +14,7 @@
   "branch": "<branch name>",
   "pr": "<PR number, or null>",
   "mode": "full | push | spec | quick",
-  "skillVersion": "<contents of $SKILL_DIR/VERSION>",
+  "skillVersion": "<scope.py's skillVersion, copied as is>",
   "finders": ["General", "Contracts", "Security", "Design", "Standards", "Claims"],
   "findings": [
     {
@@ -31,11 +31,14 @@
       "fingerprint": "<repo>:<path>:<anchor symbol>:<short claim slug>",
       "threadId": "<GitHub review thread id once posted, else null>"
     }
+  ],
+  "refuted": [
+    {"claim": "one sentence", "sites": ["lib/x.ts:88"], "finders": ["General"], "reason": "the check's one-line reason"}
   ]
 }
 ```
 
-- Store confirmed findings only, nits included. Unverified and capped candidates are not stored.
+- Store confirmed findings, nits included. Store each refuted candidate too, one line in `refuted`: it is never posted, and the ledger uses it to tell a miss no finder raised from one a check threw out. Unverified and capped candidates are not stored.
 - `finders` on a finding names every finder that proposed it before triage merged them; the run-level `finders` lists the finders that ran. The ledger (SKILL.md, Step 7) scores each finder from these, so leave none out. `fixed` and `declined` are read as `addressed` and `dismissed`.
 - **Merge, never overwrite.** On every write, keep every earlier finding and update its status. A full review of a branch with a state file still keeps `dismissed` and `addressed` entries, so they are not raised again.
 - Match a new finding to an earlier one by meaning: the same anchor, or the same claim at a nearby site. Titles change between runs; anchors and claims mostly do not.

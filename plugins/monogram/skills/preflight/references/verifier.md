@@ -19,7 +19,9 @@ Work in this order. Stop as soon as one step settles it.
    - Otherwise it is pre-existing: verdict refuted, reason "pre-existing", and fill in `backlog`.
 4. **Is it settled?** Refute it if one of these holds:
    - It matches a "Never flag" entry you were given, or a "Settled conventions" list in the repo's AGENTS.md or CLAUDE.md, if it has one.
-   - A comment, spec, ADR or design.md records the choice, and that record existed at base. A comment added by this same change is a claim to check, not a settlement. Security defaults are the exception: confirm them as Minor, one line, citing the default.
+   - A comment, spec, ADR or design.md records the choice, and that record existed at base. Security defaults are the exception: confirm them as Minor, one line, citing the default.
+   - The change itself names the limit or the follow-up: in a code comment, the spec it edits, the PR body's open items or merge conditions, or the backlog. Check that the statement is true, and that it sits where the person who meets the limit will see it. If both hold, refute ("stated limit"), unless the limit breaks something the spec or the PR promises: then confirm it against that promise. A comment added by the change that only asserts the code is correct is still a claim to check. In three days of the ledger, 8 of 37 declines were limits the change had already stated.
+   - The new code follows a convention the repo uses in several places at base for the same purpose, such as a test's timing, a grant pattern or the order of checks. Refute ("repo convention") and note the convention in `backlog` if it looks wrong, unless this site is worse than the others: a hotter path, or input from users where the others have none. A defect copied from one other site is still a finding.
    - It asks for parsing or hardening past a limit the code or probe states.
    - It asks for latency work off the hot path (a CLI, a CI script, an eval harness).
 5. **Can it happen?** For a runtime claim, trace one concrete trigger from an entry point to the bad result, and name each step. For a race or a lock, find the real writers. For a scaling claim, check the realistic size.
@@ -37,7 +39,7 @@ Work in this order. Stop as soon as one step settles it.
 - **Code quality (lens L8): confirm to keep, never above Minor** unless you can show a concrete failure. Refute taste and anything a settled convention covers.
 - **Scanner hits: confirm to keep.**
   - A secret is confirmed only if it looks live: not a test fixture, a placeholder or an example. Never print it in full.
-  - A migration rule is confirmed only if the statement is really missing for that table or function (check the whole migration, and later migrations in the same change).
+  - A migration rule is confirmed only if the statement is really missing for that table or function (check the whole migration, and later migrations in the same change). A grants hit also needs the repo to follow that rule: its earlier migrations revoke from anon, or its schema dump shows new tables granted to anon by default. Otherwise refute it, and check the opposite: a new table with no grant at all where the project grants none by default.
   - A dependency advisory is confirmed only if the vulnerable path is plausibly reachable from what the change uses. Otherwise it is a Minor note.
 - **Design contracts (lens L4): confirm to keep.** Read the spec's ADRs, the schema and the code it names. If the rule is defined there, refute. If not, confirm, citing the sentence that leaves it open.
 - **Generated, vendored, copied, applied or published file:** if the problem is real, confirm it and re-point `sites` at the source (the generator, the template, the upstream repo, a new migration, a new changelog entry). If it is only real in the copy, refute.
