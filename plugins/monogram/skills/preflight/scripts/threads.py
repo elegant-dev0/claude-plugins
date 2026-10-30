@@ -16,7 +16,7 @@ Every reply starts with TAG, as everything the skill posts does. Both refuse a t
 import json, re, subprocess, sys
 
 TAG = '[✈️ Preflight]'  # starts everything the skill posts
-MARK = re.compile(r'<!-- (?:preflight|subcore-review):fp=([A-Za-z0-9_.:-]+) -->')
+MARK = re.compile(r'<!-- (?:preflight|subcore-review):fp=(.+?) -->')  # a fingerprint holds a path, so take all of it
 MARKER = '<!-- preflight:fp={} -->'
 FIXED = re.compile(r'addressed in|fixed in [0-9a-f]{7}', re.I)  # our resolve reply, and CodeRabbit's edit of its own comment
 QUERY = """

@@ -3,7 +3,7 @@
 
 Usage: python3 test_post_review.py [path/to/post_review.py]
 """
-import importlib.util, os, re, sys
+import importlib.util, json, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PATH = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else os.path.join(HERE, 'post_review.py')
@@ -45,6 +45,33 @@ def main():
     checks.append(('a tagged fix reply still counts as fixed', bool(T.FIXED.search(T.tagged('✅ Addressed in abc1234')))))
     checks.append(('an old subcore-review marker still counts as ours', T.MARK.search('x <!-- subcore-review:fp=a:b:c -->').group(1) == 'a:b:c'
                    and T.MARK.search('<!-- preflight:fp=d:e -->').group(1) == 'd:e'))
+    # A real fingerprint is <repo>:<path>:<anchor>:<slug>, so it holds slashes, and the anchor may hold spaces or parentheses.
+    fps = [f['fingerprint'] for f in data['findings']] + ['kit:packages/kit/src/run.ts:useRun():stale key']
+    checks.append(('every fingerprint reads back whole from its marker',
+                   all(getattr(T.MARK.search(f'text\n\n{T.MARKER.format(fp)}\n'), 'group', lambda _: None)(1) == fp for fp in fps)))
+    posted = comments[0]['body']  # exactly what build_review sends to GitHub
+    page = {'data': {'repository': {'pullRequest': {'reviewThreads': {'pageInfo': {'hasNextPage': False, 'endCursor': None}, 'nodes': [
+        {'id': 'T9', 'isResolved': False, 'isOutdated': False, 'path': 'lib/a.ts', 'line': 20, 'originalLine': 20,
+         'comments': {'nodes': [{'databaseId': 9, 'author': {'login': 'me'}, 'createdAt': 't', 'body': posted}]}}]}}}}}
+    real_gh = T.gh
+    T.gh = lambda args, input_text=None: json.dumps(page)
+    seen = T.list_threads('o/n', 1)
+    T.gh = real_gh
+    checks.append(('a posted thread is ours on the next run, with its fingerprint, so it is not posted again',
+                   seen[0]['ours'] and seen[0]['fingerprint'] == 'app:lib/a.ts:f:inside'
+                   and P.build_review({'summary': 'x', 'findings': data['findings'][:1]}, hunks,
+                                      {t['fingerprint'] for t in seen if t['ours']}, 'h')[2] == ['app:lib/a.ts:f:inside']))
+
+    # gh --paginate --jq prints one array per page, each on its own line. A patch may itself contain "][".
+    pages = (json.dumps([{'filename': 'a.ts', 'patch': '@@ -1,2 +1,3 @@\n x\n+y = m[0]][1]\n w'}]) + '\n'
+             + json.dumps([{'filename': 'b.ts', 'patch': '@@ -5 +5,2 @@\n-a\n+b\n+c'}, {'filename': 'img.png'}]) + '\n')
+    P.gh = lambda args, input_text=None: pages
+    try:
+        got = P.diff_lines('o/n', 1)
+    except Exception as e:  # the old code raised here
+        got = repr(e)
+    checks.append(('files from every page are read, and a patch with "][" is left intact',
+                   got == {'a.ts': [{1, 2, 3}], 'b.ts': [{5, 6}], 'img.png': []}))
     fake = [{'id': 'T1', 'ours': True, 'firstCommentId': 7}, {'id': 'T2', 'ours': False, 'firstCommentId': 8}]
     T.list_threads = lambda repo, pr: fake
     def run(*argv):

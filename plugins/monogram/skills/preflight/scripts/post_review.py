@@ -29,9 +29,21 @@ def gh(args, input_text=None):
     return r.stdout
 
 
+def json_pages(text):
+    """`gh api --paginate` prints one JSON document per page. Decode each in turn and join their items."""
+    dec, i, out = json.JSONDecoder(), 0, []
+    while True:
+        while i < len(text) and text[i].isspace():
+            i += 1
+        if i == len(text):
+            return out
+        page, i = dec.raw_decode(text, i)
+        out.extend(page if isinstance(page, list) else [page])
+
+
 def diff_lines(repo, pr):
     """Right-side line numbers inside each file's hunks, per hunk, for the PR as GitHub sees it."""
-    files = json.loads(gh(['api', f'repos/{repo}/pulls/{pr}/files', '--paginate', '--jq', '[.[] | {filename, patch}]']).replace('][', ','))
+    files = json_pages(gh(['api', f'repos/{repo}/pulls/{pr}/files', '--paginate', '--jq', '[.[] | {filename, patch}]']))
     out = {}
     for f in files:
         hunks, cur, n = [], None, 0
