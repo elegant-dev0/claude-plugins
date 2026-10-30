@@ -9,7 +9,7 @@ Work in this order. Stop as soon as one step settles it.
 1. **Re-read the code at head.** Read the whole function and its callers, not a few lines around the hunk. The brief you were given lists the callers and the mentions in other repos: start from it instead of searching again, but read the code yourself. A guard 14 lines away is still a guard. For uncommitted scope, read the working tree.
 2. **Check the premise.**
    - "X is missing, unguarded or duplicated": search for it and show the command and its scope. Search this repo, and the sibling repos' main branch when the claim is about docs or another repo (`git -C <sibling> grep -n <pattern> origin/main -- <paths>`). Empty output from the wrong place proves nothing.
-   - "A library or runtime does Y": read the installed source in `node_modules/<pkg>`, or run a probe. A one-liner is `bun --no-install -e '…'`. A bigger probe (one that imports the real module, or reuses a test's mocks) goes in a file under `/tmp/preflight-probes/`, never in the repo. Never decide from memory.
+   - "A library or runtime does Y": read the installed source in `node_modules/<pkg>`, or run a probe. A one-liner is `bun --no-install -e '…'` or `node -e '…'`, or `python3 -I -c '…'` in a Python repo. A bigger probe (one that imports the real module, or reuses a test's mocks) goes in a file under `/tmp/preflight-probes/`, never in the repo. Never decide from memory.
    - "This breaks a rule": `git show <base>:<rule file> | grep -nF "<quoted text>"`. No hit means no rule. Then check that the rule's scope covers this path, and that the repo's AGENTS.md does not override it.
    - "This type is wrong": read the declaration.
 3. **Is it this change's problem?**
@@ -39,7 +39,7 @@ Work in this order. Stop as soon as one step settles it.
   - A secret is confirmed only if it looks live: not a test fixture, a placeholder or an example. Never print it in full.
   - A migration rule is confirmed only if the statement is really missing for that table or function (check the whole migration, and later migrations in the same change).
   - A dependency advisory is confirmed only if the vulnerable path is plausibly reachable from what the change uses. Otherwise it is a Minor note.
-- **Design contracts (lens L4): confirm to keep.** Read the spec's ADRs, `prod-schema.sql` and the actions it names. If the rule is defined there, refute. If not, confirm, citing the sentence that leaves it open.
+- **Design contracts (lens L4): confirm to keep.** Read the spec's ADRs, the schema and the code it names. If the rule is defined there, refute. If not, confirm, citing the sentence that leaves it open.
 - **Generated, vendored, copied, applied or published file:** if the problem is real, confirm it and re-point `sites` at the source (the generator, the template, the upstream repo, a new migration, a new changelog entry). If it is only real in the copy, refute.
 - **Unverified** is for claims you could not settle either way within the budget. Say what you checked.
 

@@ -11,7 +11,7 @@ A profile is a folder <profiles>/<name>/:
 - checks.md: extra checks per repo, the same way;
 - never-flag.md: what not to report, the same way, plus "## All repos".
 
-A repo with no profile gets the defaults: guidance from its own AGENTS.md, CLAUDE.md or CONTRIBUTING,
+A repo with no profile gets the defaults: guidance from its own rules files (AGENTS.md, CLAUDE.md, CONTRIBUTING, other tools' rules),
 generated files from lockfiles and .gitattributes, no sibling repos, and no PR gate.
 """
 import fnmatch, glob, json, os, re, subprocess

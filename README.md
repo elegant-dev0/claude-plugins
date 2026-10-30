@@ -22,4 +22,8 @@ To update later, run `claude plugin marketplace update monogram-labs` and then `
 - Optional, for stronger scans: `brew install gitleaks actionlint zizmor shellcheck`.
 - For a project with a profile: the profile in `~/.claude/preflight/profiles/<name>/`, and the project's repos cloned side by side in one folder, so the review can compare across them. A team keeps its profiles in a private repo of its own and clones it there.
 
-See [plugins/elegant/README.md](plugins/elegant/README.md) for how to use it.
+A full review takes about 15 to 20 minutes and uses about 2 to 3 million tokens. See [plugins/elegant/README.md](plugins/elegant/README.md) for how to use it.
+
+## License
+
+MIT. See [LICENSE](LICENSE). Bundled third-party material keeps its own MIT notice in `plugins/elegant/skills/preflight/THIRD_PARTY.md`.

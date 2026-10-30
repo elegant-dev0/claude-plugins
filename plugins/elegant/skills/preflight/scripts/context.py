@@ -18,7 +18,21 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REFS = os.path.join(os.path.dirname(HERE), 'references')
 sys.path.insert(0, HERE)
 import profile as prof  # noqa: E402  (repo notes, checks, never-flag entries and siblings come from the profile)
-GUIDANCE = ('AGENTS.md', 'CLAUDE.md', 'CONTRIBUTING.md', 'CODING_STANDARDS.md', '.github/CONTRIBUTING.md', 'design.md')
+GUIDANCE = ('AGENTS.md', 'CLAUDE.md', 'CONTRIBUTING.md', 'CODING_STANDARDS.md', '.github/CONTRIBUTING.md', 'design.md',
+            'GEMINI.md', '.github/copilot-instructions.md', '.cursorrules', '.windsurfrules', '.clinerules')
+# Folders other coding tools keep their rules in, with the file endings they read.
+GUIDANCE_DIRS = (('.cursor/rules', ('.mdc', '.md')), ('.github/instructions', ('.instructions.md',)),
+                 ('.windsurf/rules', ('.md',)), ('.clinerules', ('.md',)))
+
+
+def guidance(root):
+    """The repo's own rules files: the top-level names first, then each rules folder's files in order."""
+    found = [g for g in GUIDANCE if os.path.isfile(os.path.join(root, g))]
+    for d, ends in GUIDANCE_DIRS:
+        full = os.path.join(root, d)
+        if os.path.isdir(full):
+            found += sorted(os.path.join(d, n) for n in os.listdir(full) if n.endswith(ends))
+    return found
 
 
 def git(*args):
@@ -95,10 +109,11 @@ def main():
     preamble = read('repos.md').split('\n', 1)[-1].strip()  # drop the "# Repos" title
     notes = prof.section(match, 'repos.md', repo)
     if not notes:
-        found = [g for g in GUIDANCE if os.path.exists(os.path.join(root, g))]
+        found = guidance(root)
         notes = (f'This repo has no Preflight profile. Its guidance is its own: {", ".join(f"`{g}`" for g in found)}. '
                  'Read them at base; lens L9 walks them.' if found else
-                 'This repo has no Preflight profile and no AGENTS.md, CLAUDE.md or CONTRIBUTING file.')
+                 'This repo has no Preflight profile and no rules file: no AGENTS.md, CLAUDE.md or CONTRIBUTING, '
+                 'and no Cursor, Copilot, Gemini, Windsurf or Cline rules.')
     lines += ['', '## Repo notes', '',
               'The guidance that applies is THIS repo\'s, named below. If your context also holds instructions',
               'from another checkout, they do not apply unless they are for this repo.', '',

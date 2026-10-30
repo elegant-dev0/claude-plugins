@@ -1,12 +1,12 @@
 # Lenses
 
-Each lens is a list of checks a finder runs on the diff. They come from the bot findings the author accepted on the Subcore repos' PRs, grouped by the check that would have caught them, and from the benchmark's misses. Lines tagged **app**, **kit**, **core0**, **api** or **web** name a Subcore repo and apply only there. Untagged checks apply everywhere.
+Each lens is a list of checks a finder runs on the diff. They come from review-bot findings that authors accepted on real PRs, grouped by the check that would have caught them, and from a benchmark's misses. They apply to every repo. A project's own checks come from its profile (lens L5).
 
 Every check ends the same way: if it finds something, name the trigger and the consequence, and point at the evidence. A check that finds nothing reports nothing.
 
 ## L1: Runtime behaviour
 
-1. **Twins.** For each changed function, find the paths that must behave the same and compare them. Examples: relay vs realtime voice, list vs detail, tally vs feed, client check vs server check, chat vs SMS vs voice. Across repos: a parser ported between the console and subcore-api, an MCP tool vs its REST route, and `deploy-template` vs `examples/*`.
+1. **Twins.** For each changed function, find the paths that must behave the same and compare them. Examples: list vs detail, a count vs the feed it counts, client check vs server check, one channel vs another (chat, SMS, email). Across repos: a parser ported between two services, an MCP tool vs its REST route, and a scaffold template vs the examples built from it.
 2. **Five outcomes of every await.** For each new `await`, check what happens when it is:
    - **superseded:** drop the stale response by scope;
    - **failed:** clear busy flags on rejection, and cache nothing;
@@ -14,12 +14,12 @@ Every check ends the same way: if it finds something, name the trigger and the c
    - **poisoned:** a failure cached as an empty result, or a retry budget that never resets;
    - **unknown:** a non-idempotent call that failed in transit. Mark the outcome unknown and re-read, and release an idempotency reservation only on a definite refusal.
 3. **State ownership.** Name each piece of state and its owner (org, core, case, session, thread, file, build, page), and check that it resets when the owner changes.
-   - app: App Router keeps subtrees mounted. Key the subtree on the full scope tuple, distinct from sibling keys. react-hooks v7 rejects `setState` in an effect.
-   - kit: key registries on `storageKey`, never `sessionId`.
+   - A framework that keeps a subtree mounted across navigation (the Next.js App Router does) resets nothing on its own. Key the subtree on the full scope, distinct from sibling keys.
+   - A registry keys on the stable scope id, never on a per-connection one.
 4. **Lifecycle.** Check what close, unmount, hangup, barge-in and end-of-call do to queued work, timers, buffers and in-flight requests. Timers are cleared and cannot start after close. A callback arriving mid-setup finds the state it needs.
 5. **Check-then-act.** It must be one conditional write or run under a lock. Act on the row the guard read (by id), and gate dependent writes on the row count.
 6. **Mutation blast radius.** A change to data also changes counts, previews, child rows, tallies and cached pages. Return confirmed IDs, and revalidate on partial success too.
-   - app: `revalidatePath` needs `type`; RLS refuses rows silently.
+   - Row-level security refuses a forbidden write by matching zero rows, with no error: count what changed.
 7. **Edge values.** Use only inputs a real caller can send:
    - empty input, the cap and one past it, non-ASCII text (bytes vs `.length`);
    - `NaN`, `Infinity`, decimals, `__proto__`, repeated query keys (`string[]`);
@@ -27,14 +27,13 @@ Every check ends the same way: if it finds something, name the trigger and the c
    - traps: `slice(-0)`, `$&` in `replace`, PostgREST `max-rows`, NULL ordering, `ORDER BY` ties.
    - Check library behaviour in the installed source in `node_modules`. If only a run would settle it, report it as suspected; its verifier runs the probe.
 8. **Error and timeout paths.** No `catch` swallows errors it wasn't written for, and cleanup doesn't hide the original error. Cancellation propagates. Outbound work has a deadline and a retry limit.
-9. **UI states (app).**
-   - States: empty org, loading, failed lookup, null, zero items, narrow width. Each shows a true sentence and a way forward.
+9. **UI states.**
+   - States: empty account, loading, failed lookup, null, zero items, narrow width. Each shows a true sentence and a way forward.
    - Interaction: rows work by keyboard, nothing is tooltip-only, focus moves into what opens, reduced motion is respected.
-10. **Deployment topology (app).** Check whether the deployment is served by another (a routing-key prefix) or by itself. Don't call the stored description "current" when the running build differs. Expect older kits to be missing fields, and descriptions with zero channels.
 
 ## L2: Contracts and integration
 
-This is the gap the two general skills left: they caught 1 of CodeRabbit's 5 integration findings. Docs, specs and changelogs the change made false were also a third of what you accepted in kit, core0, api and web. Read the sibling repos' main branch (`repos.md`).
+General reviewers miss this most. In testing, two general review skills caught 1 of 5 integration findings, and docs, specs and changelogs a change made false were a third of all accepted findings. For a project with a profile, read the sibling repos' main branch (`repos.md`).
 
 1. **Copies of a changed fact.** For every name, number, route, default, limit, version or behaviour the diff changes, `rg` this repo and the siblings, and flag each copy that is now false. Look in the same page, specs, READMEs, AGENTS.md, comments, SQL `COMMENT ON`, docs MDX, setup prompts, `.rest` examples, MCP tool descriptions and synced skills.
 2. **Claims vs code.** Open the code behind each sentence the diff adds or edits.
@@ -46,34 +45,32 @@ This is the gap the two general skills left: they caught 1 of CodeRabbit's 5 int
    - Check each against every other rule in the same doc and in the specs it links. Example: a sentence that says something never happens, beside a rule that makes it happen.
    - Also check stale Status, "Remaining" and amendment counts, lagging indexes (specs/README, AGENTS.md ranges), dates after the change, and broken cross-references.
    - An ADR changes by a dated amendment or a new ADR that supersedes it. Flag only a silent rewrite.
-4. **API and MCP parity (api, web, kit).**
+4. **API and MCP parity.**
    - Every advertised parameter reaches the query, and descriptions name the column actually filtered.
    - Send an explicit `false` when the default is `true`.
-   - `.rest` examples match their fixtures.
-   - A change callers can see ships its docs and MCP tools (app AGENTS.md §7).
+   - Request examples (`.rest`, `.http`, curl in docs) match their fixtures.
 5. **Values across layers.**
    - Follow each new field, flag, channel name or ID through every allowlist, proxy, schema, serializer and lookup, and flag a value accepted at one layer and dropped at the next.
    - Flag a value normalized in one place (lower-cased, trimmed, aliased) and used raw in another. Example: a channel stored lower-case but looked up verbatim.
 6. **Identifiers and keys.**
    - React keys are unique among siblings.
-   - A composite key built by joining strings is collision-free. `${model}:realtime:${voice}` collides with a model named `x:realtime:y`, so use a separator the parts can't contain, or a structured key.
+   - A composite key built by joining strings is collision-free. `${model}:${voice}` collides with a model named `x:y`, so use a separator the parts can't contain, or a structured key.
    - Slug ≠ UUID. Case-normalized joins. A fallback key is never exposed as an id.
-7. **External API limits.** A value sent to a provider (Gemini, OpenAI, xAI, Twilio, Supabase) must fit the type and range the provider declares: int32 fields, enums, lengths, rounding. Example: a duration forwarded with only a `typeof number` check, where Gemini wants an int32.
+7. **External API limits.** A value sent to a provider (an LLM API, a payments or messaging API, a hosted database) must fit the type and range the provider declares: int32 fields, enums, lengths, rounding. Example: a duration forwarded with only a `typeof number` check, where Gemini wants an int32.
 8. **Versions.**
    - When an upstream fix lands, raise the minimum everywhere: package.json files, the scaffold template, the lockfile.
-   - kit: the examples move in the release commit.
-   - Packaged code never builds paths from `import.meta.dir`.
+   - Packaged code never builds paths from its source location (`import.meta.dir`, `__dirname`): they break once it is bundled or installed.
 9. **Release placeholders.** A placeholder for a release not yet published (`PLACEHOLDER`, an unpublished version) with nothing that stops it from shipping. The finding is the missing guard, a test or build check that fails while it remains.
 10. **Duplicated contracts.** A new string, label set, route sentinel or markup block that already exists elsewhere comes from one shared source.
 
 ## L3: Data and tests
 
-1. **Migrations (app, api), data integrity:**
-   - UPDATE policies are limited to editable columns, and write policies bind a core to its org.
+1. **Migrations and data integrity:**
+   - UPDATE policies are limited to editable columns, and write policies bind a row to its tenant.
    - Triggers cover explicit values, `service_role` and self-reference.
    - Index the foreign key you started filtering on.
    - Constraint swaps are replay-safe, and an applied migration is never edited.
-   - `prod-schema.sql` and `database.types.ts` are regenerated from the database. The scanner flags some of this; verify it.
+   - Checked-in schema dumps and generated database types are regenerated from the database, never hand-edited. The scanner flags some of this; verify it.
 2. **Tests that cannot fail.** Name the regression each new assertion catches, and reason through whether it would fail without the change. Report one you doubt as suspected; its verifier mutates a scratch copy (`git archive <head> | tar -x -C /tmp/preflight-probes/<name>`) and runs the test there.
    - Mocks honour their arguments. Fixtures reach the branch (slug ≠ UUID, no tied sort keys).
    - Build a fresh `Response` per call.
@@ -89,14 +86,14 @@ For each new contract, flag what is left undefined:
 - limits and quotas;
 - who may change an endpoint or identity;
 - PII retention;
-- recovery of a multi-step call that costs money (a Twilio purchase, a billed provider call);
+- recovery of a multi-step call that costs money (buying a phone number, a billed provider call);
 - what the UI and API say while the state is pending, failed or partial.
 
-Read the spec's ADRs, `prod-schema.sql` and the actions it names first. It may already be defined there.
+Read the spec's ADRs, the schema and the code it names first. It may already be defined there.
 
 ## L5: Project checks
 
-What this project enforces that a general reviewer would not know: the context file's "Project checks" section, from the project's profile. Every finder runs them. A repo with no profile has none beyond its own AGENTS.md, CLAUDE.md or CONTRIBUTING, which lens L9 walks.
+What this project enforces that a general reviewer would not know: the context file's "Project checks" section, from the project's profile. Every finder runs them. A repo with no profile has none beyond its own rules files, which lens L9 walks.
 
 ## L6: Security
 
@@ -113,7 +110,7 @@ Without a path it is at most a Minor note. Authenticated paths are **not** exemp
    - every query scoped to the org: RLS for user clients, an explicit `organization_id` for service-role clients;
    - IDs from the client or the model are never identity;
    - an IDOR by guessing another org's slug or UUID fails.
-   - app: a `PUBLIC_ROUTES` entry authenticates in the route.
+   - A route exempted from the auth middleware authenticates in its own handler.
 2. **RLS and grants.**
    - New tables have RLS, and policies for each operation they need.
    - UPDATE policies can't re-parent a row.
@@ -127,19 +124,19 @@ Without a path it is at most a Minor note. Authenticated paths are **not** exemp
    - Validate the destination on every hop, redirects included, with the repo's URL guard if it has one.
    - Timeout, byte cap, and a reader cancel on every call.
    - No secret sent to an unguarded destination.
-   - Webhooks verify their signature against the exact URL (Twilio), and replay is considered.
+   - Webhooks verify their signature against the exact URL the provider signed, and replay is considered.
 5. **Secrets and PII.**
-   - Nothing secret in client bundles (`NEXT_PUBLIC_*`, server-only imports), logs (kit: `log-content.ts`), error bodies, URLs or query strings.
+   - Nothing secret in client bundles (`NEXT_PUBLIC_*`, server-only imports), logs, error bodies, URLs or query strings.
    - Tokens are compared with `timingSafeEqual` on equal-length buffers.
    - PII is masked in logs and kept only as long as the spec says.
 6. **Cost and abuse.**
-   - Rate limits on partner and cost surfaces (Twilio sends, LLM calls).
+   - Rate limits on partner and cost surfaces (SMS and email sends, LLM calls).
    - Idempotency reserved before a billed side effect.
    - No unbounded loop or retry that bills.
-   - kit: cost-incurring doors refuse to open without their secret.
+   - An endpoint that spends money refuses to run without its secret.
 7. **Dependencies and CI.**
    - New packages: typosquats, install scripts, unmaintained.
-   - `bun audit` advisories reachable from the changed code.
+   - Audit advisories reachable from the changed code (the scanner runs `bun audit` in bun repos; elsewhere, run the package manager's audit).
    - Workflows: `pull_request_target`, expression injection, broad `permissions`, secrets in logs.
    - Verify scanner hits here.
 
@@ -150,14 +147,14 @@ First name how often the path runs: per request, per turn, per audio frame or pe
 1. **Database.**
    - N+1 queries (a query inside a loop or `map`).
    - Unpaged reads of growing tables (PostgREST `max-rows` caps silently).
-   - No index for a new filter, order or join column (check `prod-schema.sql`).
+   - No index for a new filter, order or join column (check the schema).
    - `select('*')` of wide jsonb columns in list views.
    - Counts on large tables per render.
-2. **Turn path (core0, kit).**
-   - Sequential awaits that could run together, on the per-turn path only.
-   - Blocking work before the first audio.
+2. **Request, stream and turn paths.**
+   - Sequential awaits that could run together, on the per-request or per-turn path only.
+   - Blocking work before the first byte or the first audio.
    - Per-chunk allocations, and unbounded buffers or queues.
-3. **React and Next (app, web).**
+3. **React and Next.js.**
    - Effects with unstable dependencies that refetch in a loop.
    - Context values that change identity every render.
    - Waterfalls in Server Components (awaits that could be `Promise.all`).
@@ -170,9 +167,9 @@ First name how often the path runs: per request, per turn, per audio frame or pe
 Report only what costs something later. Never above Minor unless a concrete failure follows.
 
 1. **Duplicated logic the change introduces:** the same computation in two places that must stay in step. This is the seed of a future twin bug.
-2. **Dead code the change leaves:** exports nothing imports, components nothing renders, fixtures no test reads. AGENTS.md: remove what your change made unused.
-3. **Abstraction with one caller,** or options nobody passes (AGENTS.md §2).
-4. **A file the change pushes over the 500-line cap** (tests are exempt in app).
+2. **Dead code the change leaves:** exports nothing imports, components nothing renders, fixtures no test reads. Remove what the change made unused.
+3. **Abstraction with one caller,** or options nobody passes.
+4. **A file the change pushes over a size cap the repo sets.**
 5. **A name that will cause a wrong use,** not one that is merely not to taste.
 
 Never: formatting, naming taste, settled conventions (function vs arrow, interface vs type), or "consider".
@@ -181,7 +178,7 @@ Never: formatting, naming taste, settled conventions (function vs arrow, interfa
 
 Adapted from the Standards axis of mattpocock/skills `code-review` (MIT, see `THIRD_PARTY.md`). In the benchmark, that axis found rules a change broke that no lens here listed: a decision the repo's log records with no entry, an export nothing imports.
 
-1. **Read the rules first.** Read every file in this repo that says how work should be done: AGENTS.md or CLAUDE.md, CONTRIBUTING, coding-standards files, `docs/internal/`, design.md, and the repo's decision logs (MEMORY.md, ADRs). Read them at base. The guidance paths in the context file's repo notes are the start, not the whole list.
+1. **Read the rules first.** Read every file in this repo that says how work should be done: AGENTS.md or CLAUDE.md, CONTRIBUTING, other coding tools' rules (`.cursor/rules/`, `.cursorrules`, `.github/copilot-instructions.md`, GEMINI.md), coding-standards files, `docs/internal/`, design.md, and the repo's decision logs (ADRs, a decisions or MEMORY file). In a monorepo, also read the rules files in the folders the diff touches. Read them at base. The guidance paths in the context file's repo notes are the start, not the whole list.
 2. **Walk each rule that applies to the changed paths** against the diff. Report a rule the change breaks, quoting the file and the rule. Skip what a linter or test in this repo already enforces, the "Settled conventions", and anything a "Never flag" entry covers.
 3. **Records the repo keeps.** When the change makes the kind of decision a record here already logs (a dependency policy, a reversal of an ADR, a changed default), check that the record got its entry, and that an entry the change reverses is amended or superseded.
 4. **Code the change adds that nothing uses:** an export nothing imports, a parameter no caller passes, a branch no caller reaches. Search this repo and the siblings' main before you claim it.

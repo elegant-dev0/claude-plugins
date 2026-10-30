@@ -15,13 +15,18 @@ def g(repo, *args):
                           cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
 
 
-def run(repo, T, name, review_md, origin='https://github.com/acme/api.git', guidance=False):
+def write(repo, path, text):
+    os.makedirs(os.path.dirname(os.path.join(repo, path)), exist_ok=True)
+    with open(os.path.join(repo, path), 'w') as f:
+        f.write(text)
+
+
+def run(repo, T, name, review_md, origin='https://github.com/acme/api.git', guidance=()):
     os.makedirs(repo)
     g(repo, 'init', '-q', '-b', 'main')
     g(repo, 'remote', 'add', 'origin', origin)
-    if guidance:
-        with open(os.path.join(repo, 'AGENTS.md'), 'w') as f:
-            f.write('# Rules\n')
+    for path in guidance:
+        write(repo, path, '# Rules\n')
     with open(os.path.join(repo, 'a.ts'), 'w') as f:
         f.write('export const a = 1\n')
     if review_md:
@@ -51,7 +56,11 @@ def main():
     T = tempfile.mkdtemp(prefix='context-test-')
     r, text, head = run(os.path.join(T, 'kit'), T, 'plain', review_md=False)
     r2, text2, _ = run(os.path.join(T, 'kit2'), T, 'reviewmd', review_md=True)
-    r3, text3, _ = run(os.path.join(T, 'other'), T, 'other', review_md=False, origin='git@github.com:acme/widgets.git', guidance=True)
+    r3, text3, _ = run(os.path.join(T, 'other'), T, 'other', review_md=False, origin='git@github.com:acme/widgets.git', guidance=('AGENTS.md',))
+    r4, text4, _ = run(os.path.join(T, 'cursor'), T, 'cursor', review_md=False, origin='git@github.com:acme/tools.git',
+                       guidance=('.cursor/rules/db.mdc', '.cursor/rules/app.mdc', '.cursor/rules/notes.txt',
+                                 '.github/copilot-instructions.md', '.clinerules/style.md'))
+    r5, text5, _ = run(os.path.join(T, 'bare'), T, 'bare', review_md=False, origin='git@github.com:acme/bare.git')
     part = lambda t, title: t.split(f'\n## {title}\n', 1)[-1].split('\n## ', 1)[0] if f'\n## {title}\n' in t else ''
     scope, notes, never, finder, checking = (part(text, x) for x in ('Scope', 'Repo notes', 'Never flag', 'Finder', 'Checking'))
     pchecks = part(text, 'Project checks')
@@ -78,6 +87,11 @@ def main():
         ('no profile: no project checks, no project entries', '- none' in part(text3, 'Project checks')
          and 'Project entries' not in part(text3, 'Never flag') and 'Requests to hand-edit generated' in part(text3, 'Never flag')),
         ('no profile: no siblings guessed', '/s/app' in part(text3, 'Scope')),
+        ("no profile: other tools' rules files count, in order", r4.returncode == 0 and
+         '`.github/copilot-instructions.md`, `.cursor/rules/app.mdc`, `.cursor/rules/db.mdc`, `.clinerules/style.md`'
+         in part(text4, 'Repo notes') and 'notes.txt' not in text4),
+        ('no profile and no rules file: says so', r5.returncode == 0 and 'no rules file' in part(text5, 'Repo notes')
+         and 'Cursor' in part(text5, 'Repo notes')),
         ('finder: not the prompt template', 'Prompt template' not in finder and 'You are the <name> finder' not in text),
         ('checking: the verifier steps and return', '### Steps' in checking and 'verdict: confirmed | refuted' in checking),
     ]

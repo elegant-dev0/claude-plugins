@@ -13,7 +13,7 @@ Built from 2,900 bot findings on 615 PRs of the Subcore repos and the author's r
 
 `SKILL_DIR` means this skill's folder (shown when the skill loads). Pass absolute paths to subagents: a relative `references/…` path resolves against the repo and finds nothing.
 
-**Profiles.** What Preflight knows about a project beyond the repo itself is its profile: its repos and where they sit, gates, generated paths, mirrors, extra checks and "Never flag" entries (`profile.py` explains the files). Profiles are read from `~/.claude/preflight/profiles/<name>/` first, where a team keeps its own (usually a private repo cloned there), then from `$SKILL_DIR/profiles/`, which holds only `example`. `scope.py` matches the repo to a profile by its GitHub remote and prints `profile`. A repo with no profile is reviewed with the defaults: its own AGENTS.md, CLAUDE.md or CONTRIBUTING, generated files from lockfiles and `.gitattributes`, and no sibling repos. To add a project, copy `$SKILL_DIR/profiles/example/` to `~/.claude/preflight/profiles/<name>/` and edit it.
+**Profiles.** What Preflight knows about a project beyond the repo itself is its profile: its repos and where they sit, gates, generated paths, mirrors, extra checks and "Never flag" entries (`profile.py` explains the files). Profiles are read from `~/.claude/preflight/profiles/<name>/` first, where a team keeps its own (usually a private repo cloned there), then from `$SKILL_DIR/profiles/`, which holds only `example`. `scope.py` matches the repo to a profile by its GitHub remote and prints `profile`. A repo with no profile is reviewed with the defaults: its own rules files (AGENTS.md, CLAUDE.md, CONTRIBUTING, and other coding tools' rules such as `.cursor/rules/`), generated files from lockfiles and `.gitattributes`, and no sibling repos. To add a project, copy `$SKILL_DIR/profiles/example/` to `~/.claude/preflight/profiles/<name>/` and edit it.
 
 ## Step 1: Scope
 
@@ -88,7 +88,7 @@ Sizing:
 
 Finders aim for recall, because Step 4 removes the noise. Each finder has a budget of 30 tool calls and only reads and searches; running code is the verifiers' job (`finder.md`). In testing, the slowest finders took 17 minutes and 80 tool calls each, and every check waited for them.
 
-**Probes.** Verifiers may write throwaway scripts under `/tmp/preflight-probes/<repo>-<head8>/` (one folder per review, so parallel reviews don't collide), never in the repo, and run them with `bun --no-install`. Finders don't run code. Tell every subagent the folder.
+**Probes.** Verifiers may write throwaway scripts under `/tmp/preflight-probes/<repo>-<head8>/` (one folder per review, so parallel reviews don't collide), never in the repo, and run them with `bun --no-install`, `node`, or `python3 -I`, whichever the repo uses. Finders don't run code. Tell every subagent the folder.
 - **Mutation checks:** to mutate code, copy it first (`git archive <head> | tar -x -C /tmp/preflight-probes/<name>`). Never use a worktree or checkout, because the main checkouts are shared.
 - **Install resolution:** to test what bun installs, serve stand-in packages from a throwaway registry on 127.0.0.1, on a random free port. Set a scratch `BUN_INSTALL_CACHE_DIR` and `HOME` so the real cache stays clean.
 
@@ -153,14 +153,14 @@ Save the state and the report as `state.md` describes. Save the state on every r
 
 - **Our open threads.**
   - If head fixes the finding, reply `✅ Addressed in <short sha>` and resolve it: `threads.py resolve --thread <id> --reply "…"`. This is the only case where the skill resolves a thread.
-  - If the author declined it, re-check once against the code. If they're right, reply with a one-line acknowledgment and mark it `dismissed` in the state file. If the evidence still holds, reply once with what it shows. Either way, leave the thread open, replying with `threads.py reply` (it never resolves): the repos' rule is that a declined thread stays open for the repo owner.
+  - If the author declined it, re-check once against the code. If they're right, reply with a one-line acknowledgment and mark it `dismissed` in the state file. If the evidence still holds, reply once with what it shows. Either way, leave the thread open, replying with `threads.py reply` (it never resolves): a declined thread stays open, so the repo owner decides.
   - Post every reply through `threads.py`, which starts it with `[✈️ Preflight]` as everything the skill posts does. Never reply with `gh` directly.
 - **Other reviewers' threads** (CodeRabbit, Gemini, cubic, Bugbot, people). Never resolve them; that is `resolve-pr-comments`' job. But read the author's replies: a decline with evidence of a kind of finding that will come back is a learning.
 
 **Learnings.** When a finding is declined with evidence and would come back (from any reviewer, in a thread, or by the user in chat):
 1. Propose one "Never flag" line for the repo's `REVIEW.md`: path glob, what not to flag, why, the date and the PR. Name its exception if it has one: a decline of an exotic case is not a decline of the whole class.
 2. Show the line, and add it to `REVIEW.md` in the current branch on a yes, so it lands with the PR.
-3. Every reviewer reads that file: this skill in Step 4, and CodeRabbit through `knowledge_base.code_guidelines.filePatterns` in each repo's `.coderabbit.yaml` (its docs don't list `REVIEW.md` among the defaults). Check first whether the rule belongs in the repo's AGENTS.md or CLAUDE.md instead: anything an author needs before writing the code goes there.
+3. Every reviewer can read that file: this skill in Step 4, and CodeRabbit, where the repo uses it, through `knowledge_base.code_guidelines.filePatterns` in the repo's `.coderabbit.yaml` (its docs don't list `REVIEW.md` among the defaults). Check first whether the rule belongs in the repo's AGENTS.md or CLAUDE.md instead: anything an author needs before writing the code goes there.
 
 ## Step 7: Learn from outcomes
 
@@ -171,12 +171,12 @@ The ledger (`scripts/ledger.py`, kept at `~/.claude/preflight/ledger.json`) is h
   - the fix rate by skill version, finder and severity;
   - the misses: other reviewers' findings the author fixed, nowhere near one of ours;
   - our declined findings.
-- **Act on it, then record the change.**
-  - A miss that recurs becomes a lens check, in the lens whose finder should have caught it.
-  - A decline that recurs becomes a "Never flag" line (Step 6).
-  - A finder whose findings are rarely fixed loses its row, or merges into another.
-  - A check that wrongly refutes the same kind of finding gets its rule fixed, the way the edited-doc rule was.
-  - Bump `VERSION`, then `ledger.py note "<what changed and why>"`, so the next report compares versions.
+- **Act on it, then record the change.** Never edit this skill where it is installed (`$SKILL_DIR`, under `~/.claude/plugins/`): the next plugin update replaces it, and the change is lost. A change goes where it lasts:
+  - A miss that recurs and is particular to this project becomes a check in the profile's `checks.md`, in `~/.claude/preflight/profiles/<name>/`. With no profile, it is a rule for the repo's AGENTS.md or CLAUDE.md, or a CI check.
+  - A decline that recurs becomes a "Never flag" line in the repo's `REVIEW.md` (Step 6), or in the profile's `never-flag.md`.
+  - A miss any repo could have, a finder whose findings are rarely fixed, or a check that wrongly refutes the same kind of finding is a change to Preflight itself. Write it up as a proposed edit to the plugin's source, `plugins/elegant/skills/preflight/` in https://github.com/monogram-labs/claude-plugins: the file, the old text, the new text, and the ledger numbers behind it. Show it to the user; they open the issue or PR, and a release bumps `VERSION`.
+  - Show every proposed change before making it, and make a profile or repo change only on a yes.
+  - Then `ledger.py note "<what changed and why>"`, so the next report can compare before and after.
 - **Mechanical misses go to CI, not to a lens.** A placeholder left in a changelog or an export nothing imports is cheaper and surer as a check in the repo's CI. Propose it in that repo instead.
 - One review's numbers are noise: in testing, the same setup swung 10 points between runs. Decide from the ledger's totals, never from one PR.
 
